@@ -3,18 +3,22 @@
 </h1>
 
 ### Kelompok Besar 1
-| Name                     | NIM                |
-| ------------------------ | ------------------ |
-| Iqbal Hidayat Rasyad     | 22/506066/TK/55425 |
+
+| Name                 | NIM                |
+| -------------------- | ------------------ |
+| Iqbal Hidayat Rasyad | 22/506066/TK/55425 |
+| Adzka Bagus Juniarta | 22/500276/TK/54824 |
 
 # Setting Up Project
 
-## Clone into your local directory with 
+## Clone into your local directory with
+
 ```
 git clone https://github.com/PAW11-oke/be-management-employee.git
 ```
 
 ## Install the dependency
+
 ```
 npm install
 ```
