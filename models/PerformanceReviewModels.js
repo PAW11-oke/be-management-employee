@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
 
-// Performance Review Schema (Updated)
+// Performance Review Schema
 const performanceReviewSchema = new Schema({
   employee: { type: Schema.Types.ObjectId, ref: "Employee", required: true },
   year: { type: Number, required: true },
