@@ -14,12 +14,14 @@
 
 # Setting Up Project
 
-## Clone into your local directory with 
+## Clone into your local directory with
+
 ```
 git clone https://github.com/PAW11-oke/be-management-employee.git
 ```
 
 ## Install the dependency
+
 ```
 npm install
 ```
