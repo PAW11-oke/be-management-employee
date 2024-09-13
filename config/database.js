@@ -1,6 +1,14 @@
-require('dotenv').config();
+const mongoose = require('mongoose');
+const { MONGODB_URI } = require('./config'); // Import konfigurasi umum
 
-module.exports = {
-  MONGODB_URI: process.env.MONGODB_URI,
-  PORT: process.env.PORT || 5000,
+const connectDB = async () => {
+  try {
+    await mongoose.connect(MONGODB_URI);
+    console.log('Database connected successfully');
+  } catch (error) {
+    console.error('Database connection error:', error);
+    process.exit(1);
+  }
 };
+
+module.exports = connectDB;
