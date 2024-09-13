@@ -4,10 +4,11 @@
 
 ### Kelompok Besar 1
 
-| Name                 | NIM                |
-| -------------------- | ------------------ |
-| Iqbal Hidayat Rasyad | 22/506066/TK/55425 |
-| Adzka Bagus Juniarta | 22/500276/TK/54824 |
+| Name                        | NIM                |
+| --------------------------- | ------------------ |
+| Adzka Bagus Juniarta        | 22/500276/TK/54824 |
+| Bulan Aprilia Putri Murela  | 22/500326/TK/54834 |
+| Iqbal Hidayat Rasyad        | 22/506066/TK/55425 |
 
 # Setting Up Project
 
