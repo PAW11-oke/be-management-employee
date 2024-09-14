@@ -6,8 +6,8 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 const process = require("process");
-const userRoutes = require('./routes/UserRoutes'); // Mengimpor route User
-const connectDB = require('./config/database');  // Mengimpor fungsi koneksi DB
+const userRoutes = require('./routes/UserRoutes'); 
+const connectDB = require('./config/database');  
 const { PORT } = require('./config/config');
 
 dotenv.config();
