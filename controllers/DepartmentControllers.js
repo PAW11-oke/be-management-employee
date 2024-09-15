@@ -1,4 +1,4 @@
-const Department = require("../models/Department");
+const Department = require("../models/DepartmentModels");
 
 // Create a new department
 exports.createDepartment = async (req, res) => {
@@ -39,10 +39,11 @@ exports.updateDepartment = async (req, res) => {
     const department = await Department.findByIdAndUpdate(
       req.params.id,
       req.body,
-      { new: true }
+      { new: true, runValidators: true }
     );
-    if (!department)
+    if (!department) {
       return res.status(404).json({ message: "Department not found" });
+    }
     res.json(department);
   } catch (error) {
     res.status(400).json({ message: error.message });

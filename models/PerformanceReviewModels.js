@@ -1,4 +1,5 @@
 const mongoose = require("mongoose");
+const { Schema } = mongoose;
 
 // Performance Review Schema
 const performanceReviewSchema = new Schema({
