@@ -2,7 +2,7 @@
   "name": "tugas-paw",
   "version": "1.0.0",
   "description": "simple CRUD app for company management dashboard",
-  "main": "server.js",
+  "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js"

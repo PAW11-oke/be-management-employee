@@ -12,7 +12,7 @@ router.get("/", departmentController.getAllDepartments);
 router.get("/:id", departmentController.getDepartmentById);
 
 // Update a department
-router.put("/:id", departmentController.updateDepartment);
+router.patch("/:id", departmentController.updateDepartment);
 
 // Delete a department
 router.delete("/:id", departmentController.deleteDepartment);

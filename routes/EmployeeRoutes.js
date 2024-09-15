@@ -12,7 +12,7 @@ router.get("/", employeeController.getAllEmployees);
 router.get("/:id", employeeController.getEmployeeById);
 
 // Update an employee
-router.put("/:id", employeeController.updateEmployee);
+router.patch("/:id", employeeController.updateEmployee);
 
 // Delete an employee
 router.delete("/:id", employeeController.deleteEmployee);
