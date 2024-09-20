@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const { MONGODB_URI } = require('./config'); // Import konfigurasi umum
+const { MONGODB_URI } = require('./config'); 
 
 const connectDB = async () => {
   try {
