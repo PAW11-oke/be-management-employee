@@ -4,21 +4,21 @@ const sendEmail = async (options) => {
     const transporter = nodemailer.createTransport({
         service: "gmail",
         port: 465,
-        secure: true, // true for 465, false for other ports
+        secure: true, 
         logger: true,
         debug: true,
         secureConnection: false,
         auth: {
-            user: process.env.EMAIL_USERNAME, // Ganti dengan email Anda
-            pass: process.env.EMAIL_PASSWORD, // Ganti dengan password aplikasi Gmail Anda
+            user: process.env.EMAIL_USERNAME, 
+            pass: process.env.EMAIL_PASSWORD, 
         },
         tls: {
-            rejectUnauthorized: true // Mengizinkan koneksi yang tidak terautentikasi
+            rejectUnauthorized: true 
         }
     });
 
     const emailOptions = {
-        from: process.env.EMAIL_FROM, // Ganti dengan alamat email pengirim
+        from: process.env.EMAIL_FROM, 
         to: options.email,
         subject: options.subject,
         text: options.message,

@@ -8,8 +8,15 @@ router.route('/login').post(userController.login);
 router.route('/forgotPassword').post(userController.forgotPassword);
 router.route('/resetPassword/:token').patch(userController.resetPassword);
 
-router.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+router.get('/protected', userController.protectedRoute);
+router.get('/logout', userController.logout);''
+router.get('/auth/google', passport.authenticate('google', { scope: ['email', 'profile'] }));
 
-router.get('/auth/google/callback', userController.googleOAuthCallback);
+router.get('/auth/google/callback',
+    passport.authenticate('google', { failureRedirect: '/' }),
+    (req, res) => {
+        res.redirect('/protected');
+    }
+);
 
 module.exports = router;
