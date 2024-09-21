@@ -14,7 +14,9 @@ exports.createEmployee = async (req, res) => {
 // Get all employees
 exports.getAllEmployees = async (req, res) => {
   try {
-    const employees = await Employee.find().populate("department");
+    const employees = await Employee.find()
+      .populate("department")
+      .populate("currentProjects");
     res.json(employees);
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -69,7 +71,10 @@ exports.getEmployeesByDepartment = async (req, res) => {
   try {
     const employees = await Employee.find({
       department: req.params.departmentId,
-    }).populate("department");
+    })
+      .populate("department")
+      .sort({ hireDate: -1 }); // -1 for sorting by hireDate in descending order
+
     res.json(employees);
   } catch (error) {
     res.status(500).json({ message: error.message });

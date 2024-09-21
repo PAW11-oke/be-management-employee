@@ -16,6 +16,8 @@ const userRoutes = require("./routes/UserRoutes");
 const employeeRoutes = require("./routes/EmployeeRoutes");
 const departmentRoutes = require("./routes/DepartmentRoutes");
 const projectRoutes = require("./routes/ProjectRoutes");
+const performanceReviewRoutes = require("./routes/PerformanceReviewRoutes");
+const attendanceRoutes = require("./routes/AttendanceRoutes");
 
 dotenv.config();
 
@@ -39,6 +41,8 @@ app.use("/user", userRoutes);
 app.use("/department", departmentRoutes);
 app.use("/employee", employeeRoutes);
 app.use("/project", projectRoutes);
+app.use("/performancereview", performanceReviewRoutes);
+app.use("/attendance", attendanceRoutes);
 
 app.all("*", handler404);
 app.use(handler500);
