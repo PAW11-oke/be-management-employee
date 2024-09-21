@@ -11,6 +11,12 @@ router.get("/", performanceReviewController.getAllPerformanceReviews);
 // Get a performance review by ID
 router.get("/:id", performanceReviewController.getPerformanceReviewById);
 
+// Get performance reviews by year and quarter, sorted by rating (descending)
+router.get(
+  "/:year/:quarter",
+  performanceReviewController.getPerformanceReviewsByYearAndQuarter
+);
+
 // Update a performance review by ID
 router.patch("/:id", performanceReviewController.updatePerformanceReview);
 

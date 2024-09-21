@@ -59,6 +59,22 @@ exports.getPerformanceReviewById = async (req, res) => {
   }
 };
 
+// Get Performance Reviews by Year and Quarter, sorted by Rating (descending)
+exports.getPerformanceReviewsByYearAndQuarter = async (req, res) => {
+  const { year, quarter } = req.params;
+
+  try {
+    const reviews = await PerformanceReview.find({ year, quarter })
+      .populate("employee")
+      .populate("projectContributions.project")
+      .sort({ rating: -1 }); // Sort by rating in decreasing order
+
+    res.status(200).json(reviews);
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 // Update Performance Review
 exports.updatePerformanceReview = async (req, res) => {
   const { id } = req.params;
