@@ -17,6 +17,8 @@ const userRoutes = require("./routes/UserRoutes");
 const employeeRoutes = require("./routes/EmployeeRoutes");
 const departmentRoutes = require("./routes/DepartmentRoutes");
 const projectRoutes = require("./routes/ProjectRoutes");
+const performanceReviewRoutes = require("./routes/PerformanceReviewRoutes");
+const attendanceRoutes = require("./routes/AttendanceRoutes");
 require("./config/googleOAuth");
 
 dotenv.config();
@@ -43,6 +45,8 @@ app.use("/user", userRoutes);
 app.use("/department", departmentRoutes);
 app.use("/employee", employeeRoutes);
 app.use("/project", projectRoutes);
+app.use("/performancereview", performanceReviewRoutes);
+app.use("/attendance", attendanceRoutes);
 
 app.all("*", handler404);
 app.use(handler500);
@@ -57,5 +61,5 @@ app.use((err, req, res, next) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
+  console.log(`Server running on http://localhost:${PORT}`);
 });
