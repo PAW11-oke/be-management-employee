@@ -16,7 +16,10 @@ exports.createAttendance = async (req, res) => {
 // Read All Attendances
 exports.getAllAttendances = async (req, res) => {
   try {
-    const attendances = await Attendance.find().populate("employee");
+    const attendances = await Attendance.find()
+      .populate("employee")
+      .sort({ date: 1 }); // Sort by date in ascending order
+
     res.status(200).json(attendances);
   } catch (error) {
     res.status(500).json({ message: error.message });
