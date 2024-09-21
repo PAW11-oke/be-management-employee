@@ -3,8 +3,8 @@ const passport = require('passport');
 const crypto = require("crypto");
 const User = require('../models/UserModels');
 const sendEmail = require('../config/nodemailer');
+const captcha = require('../config/captcha');
 const { verifyCaptcha } = require('../config/captcha');
-const bcrypt = require('bcryptjs');
 
 const signToken = (id) => { 
   return jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
@@ -12,18 +12,47 @@ const signToken = (id) => {
   }); 
 };
 
+exports.renderAuthForm = (req, res) => {
+  const captchaUrl = captcha.generateCaptcha();
+  res.type('html');
+  res.end(`
+    <h2>Authentication Test</h2>
+    <h3>Manual Signup</h3>
+    <img src="${captchaUrl}"/>
+    <form action="/signup" method="post">
+      <input type="email" name="email" placeholder="Email" required/>
+      <input type="password" name="password" placeholder="Password" required/>
+      <input type="text" name="captchaToken" placeholder="Enter captcha"/>
+      <input type="submit" value="Signup"/>
+    </form>
+
+    <h3>Manual Login</h3>
+    <form action="/login" method="post">
+      <input type="email" name="email" placeholder="Email" required/>
+      <input type="password" name="password" placeholder="Password" required/>
+      <input type="text" name="captchaToken" placeholder="Enter captcha"/>
+      <input type="submit" value="Login"/>
+    </form>
+
+    <h3>Google OAuth</h3>
+    <a href="/auth/google">Login/Signup with Google</a>
+
+    <h3>2FA Test</h3>
+    <form action="/enable2fa" method="post">
+      <input type="submit" value="Enable 2FA"/>
+    </form>
+  `);
+};
+
 exports.signup = async (req, res, next) => {
   try {
-    // 1. Buat user baru
     const newUser = await User.create(req.body);
 
-    // 2. Buat token verifikasi email
     const verificationToken = crypto.randomBytes(32).toString('hex');
     newUser.emailVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
     await newUser.save({ validateBeforeSave: false });
 
-    // 3. Kirim email verifikasi
-    const verificationURL = `${req.protocol}://${req.get('host')}/api/v1/auth/verifyEmail/${verificationToken}`;
+    const verificationURL = `${req.protocol}://${req.get('host')}/user/verifyEmail/${verificationToken}`;
     const message = `Click on the following link to verify your email: ${verificationURL}`;
 
     await sendEmail({
@@ -32,24 +61,20 @@ exports.signup = async (req, res, next) => {
       message,
     });
 
-    // 4. Berikan response sukses
     res.status(201).json({
       status: 'success',
       message: 'Signup successful! Please verify your email.',
     });
   } catch (error) {
-    // Menampilkan lebih banyak detail error
     console.error('Error during signup:', error);
 
-    // Menambahkan penanganan error khusus untuk kasus-kasus umum
-    if (error.code === 11000) {  // Error untuk duplicate key (misal, email sudah terdaftar)
+    if (error.code === 11000) {  
       return res.status(400).json({
         status: 'fail',
         message: 'Email is already registered!',
       });
     }
 
-    // Jika error berasal dari validasi Mongoose
     if (error.name === 'ValidationError') {
       return res.status(400).json({
         status: 'fail',
@@ -58,7 +83,6 @@ exports.signup = async (req, res, next) => {
       });
     }
 
-    // Default error handler
     res.status(500).json({
       status: 'error',
       message: 'Error signing up user',
@@ -69,7 +93,6 @@ exports.signup = async (req, res, next) => {
 exports.login = async (req, res, next) => {
   const { email, password, captchaToken, twoFactorToken } = req.body;
 
-  // Memanggil middleware verifyCaptcha sebelum melanjutkan
   if (!req.cookies.trustedDevice) {
     if (!captchaToken) {
       return res.status(400).json({ message: 'Captcha is required' });
@@ -160,30 +183,50 @@ exports.forgotPassword = async (req, res, next) => {
   }
 };
 
-exports.resetPassword = async (req, res, next) => {
-  const { currentPassword, newPassword, confirmPassword } = req.body;
-  const user = await User.findById(req.user.id).select('+password');
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password, passwordConfirm } = req.body;
 
-  if (!user) {
-    return next(new Error('User not found'));
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Token is invalid or has expired' });
+    }
+
+    user.password = password;
+    user.passwordConfirm = passwordConfirm;
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    await user.save();
+
+    const loginToken = signToken(user._id);
+    res.status(200).json({
+      status: 'success',
+      message: 'Password reset successfully',
+      token: loginToken
+    });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ message: 'Error resetting password' });
   }
+};
 
-  if (!(await bcrypt.compare(currentPassword, user.password))) {
-    return res.status(401).json({ status: 'fail', message: 'Current password is incorrect' });
+exports.protectedRoute = (req, res) => {
+  if (req.isAuthenticated()) {
+    res.send(`Hello, ${req.user.name}`);
+  } else {
+    res.status(401).send('Unauthorized');
   }
+};
 
-  if (newPassword !== confirmPassword) {
-    return res.status(400).json({ status: 'fail', message: 'Passwords do not match' });
-  }
-
-  user.password = newPassword;
-  user.confirmPassword = confirmPassword;
-  await user.save();
-
-  res.status(200).json({
-    status: 'success',
-    message: 'Password updated successfully!',
-  });
+exports.logout = (req, res) => {
+  req.logout();
+  res.redirect('/');
 };
 
 exports.googleOAuthLogin = (req, res, next) => {
