@@ -1,184 +1,126 @@
-const jwt = require('jsonwebtoken');
 const passport = require('passport');
 const crypto = require("crypto");
 const User = require('../models/UserModels');
-const sendEmail = require('../config/nodemailer');
-const captcha = require('../config/captcha');
-const { verifyCaptcha } = require('../config/captcha');
-
-const signToken = (id) => { 
-  return jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, {
-    expiresIn: process.env.JWT_EXPIRES_IN,
-  }); 
-};
-
-exports.renderAuthForm = (req, res) => {
-  const captchaUrl = captcha.generateCaptcha();
-  res.type('html');
-  res.end(`
-    <h2>Authentication Test</h2>
-    <h3>Manual Signup</h3>
-    <img src="${captchaUrl}"/>
-    <form action="/signup" method="post">
-      <input type="email" name="email" placeholder="Email" required/>
-      <input type="password" name="password" placeholder="Password" required/>
-      <input type="text" name="captchaToken" placeholder="Enter captcha"/>
-      <input type="submit" value="Signup"/>
-    </form>
-
-    <h3>Manual Login</h3>
-    <form action="/login" method="post">
-      <input type="email" name="email" placeholder="Email" required/>
-      <input type="password" name="password" placeholder="Password" required/>
-      <input type="text" name="captchaToken" placeholder="Enter captcha"/>
-      <input type="submit" value="Login"/>
-    </form>
-
-    <h3>Google OAuth</h3>
-    <a href="/auth/google">Login/Signup with Google</a>
-
-    <h3>2FA Test</h3>
-    <form action="/enable2fa" method="post">
-      <input type="submit" value="Enable 2FA"/>
-    </form>
-  `);
-};
+const { sendVerificationEmail } = require('../utils/emailVerify'); 
+const { signToken } = require('../config/jwt');
 
 exports.signup = async (req, res, next) => {
   try {
-    const newUser = await User.create(req.body);
+    const { name, email, password, confirmPassword } = req.body;
 
-    const verificationToken = crypto.randomBytes(32).toString('hex');
-    newUser.emailVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
-    await newUser.save({ validateBeforeSave: false });
+    if (password.trim() !== confirmPassword.trim()) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
 
-    const verificationURL = `${req.protocol}://${req.get('host')}/user/verifyEmail/${verificationToken}`;
-    const message = `Click on the following link to verify your email: ${verificationURL}`;
-
-    await sendEmail({
-      email: newUser.email,
-      subject: 'Your email verification link',
-      message,
+    const newUser = await User.create({
+      name,
+      email,
+      password, 
     });
+
+    await sendVerificationEmail(newUser, req);
+    
+    const token = signToken(newUser._id); 
 
     res.status(201).json({
       status: 'success',
       message: 'Signup successful! Please verify your email.',
+      token, 
+      user: {
+        id: newUser._id,
+        name: newUser.name,
+        email: newUser.email,        
+      },
     });
   } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: 'Email already exists' });
+    }
+    
     console.error('Error during signup:', error);
-
-    if (error.code === 11000) {  
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Email is already registered!',
-      });
-    }
-
-    if (error.name === 'ValidationError') {
-      return res.status(400).json({
-        status: 'fail',
-        message: 'Invalid data submitted during signup',
-        error: error.message,
-      });
-    }
-
-    res.status(500).json({
-      status: 'error',
-      message: 'Error signing up user',
-    });
+    res.status(500).json({ message: 'An error occurred. Please try again later.' });
   }
 };
 
 exports.login = async (req, res, next) => {
-  const { email, password, captchaToken, twoFactorToken } = req.body;
+  const { email, password } = req.body;
 
-  if (!req.cookies.trustedDevice) {
-    if (!captchaToken) {
-      return res.status(400).json({ message: 'Captcha is required' });
+  try {
+    const user = await User.findOne({ email }).select('+password +isVerified');
+
+    if (!user.isVerified) {
+      await sendVerificationEmail(user, req);
+      return res.status(401).json({ message: 'Please verify your email before logging in. Check your inbox for a verification email.' });
     }
 
-    const isCaptchaValid = await verifyCaptcha(captchaToken);
-    if (!isCaptchaValid) {
-      return res.status(400).json({ message: 'Invalid captcha' });
+    const isPasswordCorrect = await user.comparePasswordToDB(password, user.password);
+
+    if (user.isLocked()) {
+      const lockoutEnd = new Date(user.lockoutTime);
+      const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000); // Calculate remaining time in minutes
+      return res.status(423).json({ message: `Account locked. Try again in ${waitTime} minute(s).` });
     }
-  }
+    
+    if (!isPasswordCorrect) {
+      await user.incrementLoginAttempts(); 
+      
+      if (user.loginAttempts >= 3) {
+        user.lockoutTime = Date.now() + 10 * 60 * 1000; 
+        await user.save({ validateBeforeSave: false }); 
+        return res.status(423).json({ message: 'Account locked. Try again in 10 minutes.' });
+      }
+    
+      return res.status(401).json({ message: 'Incorrect email or password' });
+    }
 
-  const user = await User.findOne({ email }).select('+password +isTwoFactorEnabled +twoFactorSecret');
+    user.resetLoginAttempts();
 
-  if (!user) {
-    return res.status(401).json({ message: 'Incorrect email or password' });
-  }
-
-  if (user.isLocked()) {
-    const lockoutEnd = new Date(user.lockoutTime);
-    const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000);
-
-    return res.status(423).json({
-      message: `Too many failed login attempts. Please try again after ${waitTime} minute(s).`
-    });
-  }
-
-  const isPasswordCorrect = await user.comparePasswordToDB(password, user.password);
-  if (!isPasswordCorrect) {
-    user.incrementLoginAttempts();
-
-    if (user.loginAttempts >= 3) {
-      user.lockoutTime = Date.now() + 10 * 60 * 1000;
-      await user.save({ validateBeforeSave: false });
-
-      return res.status(423).json({
-        message: 'Too many failed login attempts. Please try again in 10 minutes.'
-      });
+    if (!user.isVerified) {
+      user.isVerified = true; 
     }
 
     await user.save({ validateBeforeSave: false });
 
-    return res.status(401).json({ message: 'Incorrect email or password' });
+    res.cookie('trustedDevice', true, {
+      maxAge: 30 * 24 * 60 * 60 * 1000, 
+      httpOnly: true,
+    });
+
+    const token = signToken(user._id);
+
+    res.status(200).json({
+      password: password,
+      status: 'success',
+      token,
+      message: 'Login successful and email verified!',
+    });
+  } catch (error) {
+    console.error('Error during login:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'An error occurred during login',
+    });
   }
-
-  user.resetLoginAttempts();
-  await user.save({ validateBeforeSave: false });
-
-  // Set cookie for trusted device
-  res.cookie('trustedDevice', true, { maxAge: 30 * 24 * 60 * 60 * 1000, httpOnly: true });
-
-  // Generate token for successful login
-  const token = signToken(user._id);
-  res.status(200).json({
-    status: 'success',
-    token,
-  });
 };
 
 exports.forgotPassword = async (req, res, next) => {
   const user = await User.findOne({ email: req.body.email });
 
   if (!user) {
-    return next(new Error('There is no user with that email address'));
+    return res.status(404).json({ message: 'No user found with that email' });
   }
 
-  const resetToken = user.createResetPasswordToken();
-  await user.save({ validateBeforeSave: false });
-
-  const resetURL = `${req.protocol}://${req.get('host')}/api/v1/users/resetPassword/${resetToken}`;
-  const message = `Forgot your password? Submit a PATCH request with your new password and passwordConfirm to: ${resetURL}. If you didn't forget your password, please ignore this email!`;
+  if (!user.isVerified) {
+    return res.status(400).json({ message: 'Email not verified. Please verify your email first.' });
+  }
 
   try {
-    await sendEmail({
-      email: user.email,
-      subject: 'Your password reset token (valid for 10 minutes)',
-      message,
-    });
-
+    await sendForgotPasswordEmail(user, req);
     res.status(200).json({
       status: 'success',
-      message: 'Token sent to email!',
+      message: 'Verification email sent for password reset!',
     });
   } catch (error) {
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
-    await user.save({ validateBeforeSave: false });
     return next(new Error('There was an error sending the email. Try again later!'));
   }
 };
@@ -198,13 +140,21 @@ exports.resetPassword = async (req, res) => {
       return res.status(400).json({ message: 'Token is invalid or has expired' });
     }
 
-    user.password = password;
-    user.passwordConfirm = passwordConfirm;
-    user.passwordResetToken = undefined;
-    user.passwordResetExpires = undefined;
+    if (!user.isVerified) {
+      return res.status(400).json({ message: 'Email not verified. Please verify your email first.' });
+    }
+
+    if (password !== passwordConfirm) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
+
+    user.password = password; 
+    user.passwordResetToken = undefined; 
+    user.passwordResetExpires = undefined; 
     await user.save();
 
-    const loginToken = signToken(user._id);
+    const loginToken = signToken(user._id); 
+
     res.status(200).json({
       status: 'success',
       message: 'Password reset successfully',
@@ -230,30 +180,29 @@ exports.logout = (req, res) => {
 };
 
 exports.googleOAuthLogin = (req, res, next) => {
-  if (req.cookies && req.cookies.authCookie) {
-    passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
-  } else {
-    const captchaToken = req.body.captchaToken; 
-    verifyCaptcha(captchaToken)
-      .then(isValid => {
-        if (isValid) {
-          passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
-        } else {
-          return res.status(400).json({ status: 'fail', message: 'Invalid captcha' });
-        }
-      })
-      .catch(error => {
-        return res.status(500).json({ status: 'fail', message: 'Captcha verification failed', error });
-      });
-  }
+  passport.authenticate('google', { scope: ['email', 'profile'] })(req, res, next);
 };
 
 exports.googleOAuthCallback = (req, res, next) => {
-  passport.authenticate('google', { failureRedirect: '/login' }, (err, user) => {
-    if (err || !user) {
-      return res.status(400).json({ status: 'fail', message: 'Google authentication failed' });
+  passport.authenticate('google', { failureRedirect: '/login' }, async (err, user) => {
+    if (err) {
+      return res.status(400).json({ 
+        status: 'fail', 
+        message: 'Google authentication failed. Please try again.' 
+      });
     }
+
     const token = signToken(user._id);
-    res.status(200).json({ status: 'success', token });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Login successful with Google',
+      tokenJWT: token,
+      user: {
+        name: user.name,
+        email: user.email,
+        googleId: user.googleId,
+      },
+    });
   })(req, res, next);
 };
