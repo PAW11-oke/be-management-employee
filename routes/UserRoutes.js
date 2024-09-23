@@ -6,7 +6,8 @@ const userController = require('../controllers/UserControllers');
 router.route('/signup').post(userController.signup);
 router.route('/login').post(userController.login);
 router.route('/forgotPassword').post(userController.forgotPassword);
-router.route('/resetPassword/:token').patch(userController.resetPassword);
+router.route('/resetPassword/:token').get(userController.resetPassword);
+router.route('/verifyEmail/:token').get(userController.verifyEmail);
 
 router.get('/dashboard', userController.protectedRoute);
 router.get('/logout', userController.logout);

@@ -1,7 +1,7 @@
 const passport = require('passport');
 const crypto = require("crypto");
 const User = require('../models/UserModels');
-const { sendVerificationEmail } = require('../utils/emailVerify'); 
+const emailVerify = require('../utils/emailVerify');
 const { signToken } = require('../config/jwt');
 
 exports.signup = async (req, res, next) => {
@@ -12,14 +12,18 @@ exports.signup = async (req, res, next) => {
       return res.status(400).json({ message: 'Passwords do not match' });
     }
 
-    const newUser = await User.create({
+    const user = await User.create({
       name,
       email,
       password, 
     });
 
-    await sendVerificationEmail(newUser, req);
-    
+    await emailVerify(user, req, 'signup');
+
+    if(!user.isVerified) {
+      return res.status(401).json({ message: 'Please verify your email before register. Check your inbox for a verification email.' });
+    }
+
     const token = signToken(newUser._id); 
 
     res.status(201).json({
@@ -57,18 +61,19 @@ exports.login = async (req, res, next) => {
 
     if (user.isLocked()) {
       const lockoutEnd = new Date(user.lockoutTime);
-      const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000); // Calculate remaining time in minutes
+      const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000); 
       return res.status(423).json({ message: `Account locked. Try again in ${waitTime} minute(s).` });
     }
     
     if (!isPasswordCorrect) {
-      await user.incrementLoginAttempts(); 
+      await user.incrementLoginAttempts();
       
       if (user.loginAttempts >= 3) {
-        user.lockoutTime = Date.now() + 10 * 60 * 1000; 
+        user.lockoutTime = Date.now() + 1 * 60 * 1000; 
         await user.save({ validateBeforeSave: false }); 
-        return res.status(423).json({ message: 'Account locked. Try again in 10 minutes.' });
-      }
+        user.resetLoginAttempts();
+        const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000); 
+        return res.status(423).json({ message: `Account locked. Try again in ${waitTime} minute(s).` });      }
     
       return res.status(401).json({ message: 'Incorrect email or password' });
     }
@@ -114,6 +119,8 @@ exports.forgotPassword = async (req, res, next) => {
     return res.status(400).json({ message: 'Email not verified. Please verify your email first.' });
   }
 
+  await emailVerify(user, req, 'forgotPassword');
+
   try {
     await sendForgotPasswordEmail(user, req);
     res.status(200).json({
@@ -128,7 +135,7 @@ exports.forgotPassword = async (req, res, next) => {
 exports.resetPassword = async (req, res) => {
   try {
     const { token } = req.params;
-    const { password, passwordConfirm } = req.body;
+    const { password, confirmPassword } = req.body;
 
     const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
     const user = await User.findOne({
@@ -137,14 +144,10 @@ exports.resetPassword = async (req, res) => {
     });
 
     if (!user) {
-      return res.status(400).json({ message: 'Token is invalid or has expired' });
+      return res.status(400).json({ message: 'Token is invalid or has expired please reload login' });
     }
 
-    if (!user.isVerified) {
-      return res.status(400).json({ message: 'Email not verified. Please verify your email first.' });
-    }
-
-    if (password !== passwordConfirm) {
+    if (password !== confirmPassword) {
       return res.status(400).json({ message: 'Passwords do not match' });
     }
 
@@ -168,7 +171,17 @@ exports.resetPassword = async (req, res) => {
 
 exports.protectedRoute = (req, res) => {
   if (req.isAuthenticated()) {
-    res.send(`Hello, ${req.user.name}`);
+    res.status(200).json({
+      status: 'success',
+      message: 'Login successful with Google',
+      tokenJWT: token,
+      user: {
+        name: user.name,
+        email: user.email,
+        googleId: user.googleId,
+      },
+    });
+    res.status(200).json(`Hello, ${req.user.name}`);
   } else {
     res.status(401).send('Unauthorized');
   }
@@ -194,15 +207,28 @@ exports.googleOAuthCallback = (req, res, next) => {
 
     const token = signToken(user._id);
 
-    res.status(200).json({
-      status: 'success',
-      message: 'Login successful with Google',
-      tokenJWT: token,
-      user: {
-        name: user.name,
-        email: user.email,
-        googleId: user.googleId,
-      },
-    });
   })(req, res, next);
+};
+
+exports.verifyEmail = async (req, res, next) => {
+  try {
+    const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+    const user = await User.findOne({
+      VerificationToken: hashedToken,
+      VerificationExpires: { $gt: Date.now()} // Pastikan token belum kedaluwarsa
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Token is invalid or expired' });
+    }
+
+    user.isVerified = true;
+    user.VerificationToken = undefined;
+    user.VerificationExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: 'Email verified successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error verifying email' });
+  }
 };

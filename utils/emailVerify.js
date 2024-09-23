@@ -2,33 +2,34 @@ const crypto = require('crypto');
 const User = require('../models/UserModels');
 const sendEmail = require('../config/nodemailer');
 
-const sendEmailWithType = async (user, req, type) => {
-  let subject, message;
+const emailVerify = async (user, req, type) => {
+  let subject, message, tokenField, tokenExpiryField;
+
+  const verificationToken = crypto.randomBytes(32).toString('hex');
+  const hashedToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
 
   switch (type) {
-    case 'verification':
-      const verificationToken = crypto.randomBytes(32).toString('hex');
-      user.emailVerificationToken = crypto.createHash('sha256').update(verificationToken).digest('hex');
-      await user.save({ validateBeforeSave: false });
-
-      const verificationURL = `${req.protocol}://${req.get('host')}/user/verifyEmail/${verificationToken}`;
-      subject = 'Your email verification link';
-      message = `Click on the following link to verify your email: ${verificationURL}`;
+    case 'signup':
+      tokenField = 'VerificationToken';
+      tokenExpiryField = 'VerificationExpires';
+      subject = 'Please verify your email';
+      message = `Click on the following link to verify your email: ${req.protocol}://${req.get('host')}/user/verifyEmail/${verificationToken}`;
       break;
 
     case 'forgotPassword':
-      const resetToken = crypto.randomBytes(32).toString('hex');
-      user.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-      await user.save({ validateBeforeSave: false });
-
-      const resetURL = `${req.protocol}://${req.get('host')}/user/resetPassword/${resetToken}`;
-      subject = 'Your password reset link';
-      message = `Click on the following link to reset your password: ${resetURL}`;
+      tokenField = 'VerificationToken';
+      tokenExpiryField = 'VerificationExpires';
+      subject = 'Password Reset Request';
+      message = `Click on the following link to reset your password: ${req.protocol}://${req.get('host')}/user/resetPassword/${verificationToken}`;
       break;
-      
+
     default:
-      throw new Error('Invalid email type');
+      throw new Error('Invalid email verification type');
   }
+
+  user[tokenField] = hashedToken;
+  user[tokenExpiryField] = Date.now() + 10 * 60 * 1000;
+  await user.save({ validateBeforeSave: false });
 
   await sendEmail({
     email: user.email,
@@ -37,35 +38,4 @@ const sendEmailWithType = async (user, req, type) => {
   });
 };
 
-exports.sendVerificationEmail = async (user, req) => {
-  await sendEmailWithType(user, req, 'verification');
-};
-
-exports.sendForgotPasswordEmail = async (user, req) => {
-  await sendEmailWithType(user, req, 'forgotPassword');
-};
-
-exports.verifyEmail = async (req, res, next) => {
-    try {
-      const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
-      console.log("Token received from URL:", req.params.token); // Log token from URL
-      console.log("Hashed token:", hashedToken); // Log hashed token
-  
-      const user = await User.findOne({ emailVerificationToken: hashedToken });
-      console.log("User found:", user); // Log the user object
-  
-      if (!user) {
-        return res.status(400).json({ message: 'Token is invalid or expired' });
-      }
-  
-      user.isVerified = true;
-      user.emailVerificationToken = undefined;
-      await user.save();
-  
-      res.status(200).json({ message: 'Email verified successfully' });
-    } catch (error) {
-      console.error("Error verifying email:", error); // Log the error
-      res.status(500).json({ message: 'Error verifying email' });
-    }
-};
-  
+module.exports = emailVerify;
