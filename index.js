@@ -13,6 +13,7 @@ const connectDB = require("./config/database");
 const { PORT } = require("./config/config");
 const handler404 = require("./utils/handler404");
 const handler500 = require("./utils/handler500");
+
 const userRoutes = require("./routes/UserRoutes");
 const employeeRoutes = require("./routes/EmployeeRoutes");
 const departmentRoutes = require("./routes/DepartmentRoutes");
@@ -31,8 +32,12 @@ app.use(cookieParser());
 app.use(morgan("dev"));
 app.use(cors());
 app.use(express.json());
-app.use(session({ secret: 'cats', resave: false, saveUninitialized: true }));
-app.use(passport.initialize());
+app.use(session({
+  secret: 'cat', 
+  resave: false, 
+  saveUninitialized: false, 
+  cookie: { secure: false }  // Set to `true` jika menggunakan HTTPS
+}));app.use(passport.initialize());
 app.use(passport.session());
 
 connectDB();

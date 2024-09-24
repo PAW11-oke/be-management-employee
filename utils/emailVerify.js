@@ -12,15 +12,15 @@ const emailVerify = async (user, req, type) => {
     case 'signup':
       tokenField = 'VerificationToken';
       tokenExpiryField = 'VerificationExpires';
-      subject = 'Please verify your email';
+      subject = 'Verify Account HR Management Employee';
       message = `Click on the following link to verify your email: ${req.protocol}://${req.get('host')}/user/verifyEmail/${verificationToken}`;
       break;
 
     case 'forgotPassword':
       tokenField = 'VerificationToken';
       tokenExpiryField = 'VerificationExpires';
-      subject = 'Password Reset Request';
-      message = `Click on the following link to reset your password: ${req.protocol}://${req.get('host')}/user/resetPassword/${verificationToken}`;
+      subject = 'Password Reset Account HR Management Employee';
+      message = `Click on the following link to reset your password: ${req.protocol}://${req.get('host')}/user/verifyEmail/${verificationToken}`;
       break;
 
     default:
@@ -28,7 +28,7 @@ const emailVerify = async (user, req, type) => {
   }
 
   user[tokenField] = hashedToken;
-  user[tokenExpiryField] = Date.now() + 10 * 60 * 1000;
+  user[tokenExpiryField] = Date.now() + 1 * 60 * 1000;
   await user.save({ validateBeforeSave: false });
 
   await sendEmail({

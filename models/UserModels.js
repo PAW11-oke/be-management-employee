@@ -27,7 +27,6 @@ const userSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
-  lockoutTime: Date, 
   isVerified: {
     type: Boolean,
     default: false, 
@@ -52,7 +51,7 @@ userSchema.methods.createResetPasswordToken = function() {
 }
 
 userSchema.methods.isLocked = function() {
-  return this.lockoutTime && this.lockoutTime > Date.now();
+  return this.VerificationExpires && this.VerificationExpires > Date.now();
 };
 
 
@@ -64,7 +63,7 @@ userSchema.methods.incrementLoginAttempts = async function() {
 
 userSchema.methods.resetLoginAttempts = function() {
   this.loginAttempts = 0;
-  this.lockoutTime = undefined;
+  this.VerificationExpires = undefined;
 };
 
 module.exports = mongoose.model("User", userSchema);
