@@ -21,53 +21,49 @@ const userSchema = new mongoose.Schema({
     select: false,
   },
   googleId: { type: String, default: null },
-  passwordResetToken: { type: String, default: null },
-  passwordResetExpires: { type: Date, default: null },
+  VerificationToken: { type: String, default: null },
+  VerificationExpires: { type: Date, default: null },
   loginAttempts: {
     type: Number,
     default: 0,
   },
-  lockoutTime: Date, 
   isVerified: {
     type: Boolean,
     default: false, 
   }, 
-  emailVerificationToken: String,
 });
 
-// Middleware untuk hashing password sebelum menyimpan
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   this.password = await bcrypt.hash(this.password, 12);
   next();
 });
 
-// Method untuk membandingkan password
 userSchema.methods.comparePasswordToDB = async function(password) {
   return await bcrypt.compare(password, this.password);
 }
 
 userSchema.methods.createResetPasswordToken = function() {
   const resetToken = crypto.randomBytes(32).toString('hex');
-  this.passwordResetToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-  this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // Token berlaku selama 10 menit
+  this.VerificationToken = crypto.createHash('sha256').update(resetToken).digest('hex');
+  this.VerificationExpires = Date.now() + 10 * 60 * 1000; 
   return resetToken;
 }
 
 userSchema.methods.isLocked = function() {
-  return this.lockoutTime && this.lockoutTime > Date.now();
+  return this.VerificationExpires && this.VerificationExpires > Date.now();
 };
 
 
 userSchema.methods.incrementLoginAttempts = async function() {
   this.loginAttempts += 1;
-  await this.save({ validateBeforeSave: false }); // Ensure changes are saved
+  await this.save({ validateBeforeSave: false }); 
 };
 
 
 userSchema.methods.resetLoginAttempts = function() {
   this.loginAttempts = 0;
-  this.lockoutTime = undefined;
+  this.VerificationExpires = undefined;
 };
 
 module.exports = mongoose.model("User", userSchema);

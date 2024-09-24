@@ -1,7 +1,7 @@
 const passport = require('passport');
 const crypto = require("crypto");
 const User = require('../models/UserModels');
-const { sendVerificationEmail } = require('../utils/emailVerify'); 
+const emailVerify = require('../utils/emailVerify');
 const { signToken } = require('../config/jwt');
 
 exports.signup = async (req, res, next) => {
@@ -12,26 +12,21 @@ exports.signup = async (req, res, next) => {
       return res.status(400).json({ message: 'Passwords do not match' });
     }
 
-    const newUser = await User.create({
+    const user = await User.create({
       name,
       email,
       password, 
     });
 
-    await sendVerificationEmail(newUser, req);
-    
+    await emailVerify(user, req, 'signup');
+
+    if(!user.isVerified) {
+      return res.status(401).json({ message: 'Please verify your email before register. Check your inbox for a verification email.' });
+    }
+
     const token = signToken(newUser._id); 
 
-    res.status(201).json({
-      status: 'success',
-      message: 'Signup successful! Please verify your email.',
-      token, 
-      user: {
-        id: newUser._id,
-        name: newUser.name,
-        email: newUser.email,        
-      },
-    });
+    createSendResponse(user,201,res);
   } catch (error) {
     if (error.code === 11000) {
       return res.status(400).json({ message: 'Email already exists' });
@@ -48,7 +43,7 @@ exports.login = async (req, res, next) => {
   try {
     const user = await User.findOne({ email }).select('+password +isVerified');
 
-    if (!user.isVerified) {
+    if (user.isVerified !== true) {
       await sendVerificationEmail(user, req);
       return res.status(401).json({ message: 'Please verify your email before logging in. Check your inbox for a verification email.' });
     }
@@ -56,19 +51,22 @@ exports.login = async (req, res, next) => {
     const isPasswordCorrect = await user.comparePasswordToDB(password, user.password);
 
     if (user.isLocked()) {
-      const lockoutEnd = new Date(user.lockoutTime);
-      const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000); // Calculate remaining time in minutes
-      return res.status(423).json({ message: `Account locked. Try again in ${waitTime} minute(s).` });
+      const lockoutEnd = new Date(user.VerificationExpires);
+      const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000); 
+      return res.status(423).json({ message: `Account locked. Try again in ${waitTime} minutes.` });
     }
     
     if (!isPasswordCorrect) {
-      await user.incrementLoginAttempts(); 
+      await user.incrementLoginAttempts();
       
       if (user.loginAttempts >= 3) {
-        user.lockoutTime = Date.now() + 10 * 60 * 1000; 
+        user.VerificationExpires = Date.now() + 10 * 60 * 1000; 
         await user.save({ validateBeforeSave: false }); 
-        return res.status(423).json({ message: 'Account locked. Try again in 10 minutes.' });
-      }
+        user.resetLoginAttempts();
+
+        const lockoutEnd = new Date(user.VerificationExpires);
+        const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000); 
+        return res.status(423).json({ message: `Account locked. Try again in ${waitTime} minutes.` });      }
     
       return res.status(401).json({ message: 'Incorrect email or password' });
     }
@@ -104,47 +102,52 @@ exports.login = async (req, res, next) => {
 };
 
 exports.forgotPassword = async (req, res, next) => {
-  const user = await User.findOne({ email: req.body.email });
-
-  if (!user) {
-    return res.status(404).json({ message: 'No user found with that email' });
-  }
-
-  if (!user.isVerified) {
-    return res.status(400).json({ message: 'Email not verified. Please verify your email first.' });
-  }
-
   try {
-    await sendForgotPasswordEmail(user, req);
-    res.status(200).json({
-      status: 'success',
-      message: 'Verification email sent for password reset!',
-    });
-  } catch (error) {
-    return next(new Error('There was an error sending the email. Try again later!'));
-  }
-};
-
-exports.resetPassword = async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { password, passwordConfirm } = req.body;
-
-    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-    const user = await User.findOne({
-      passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() }
-    });
+    const { email, password } = req.body;
+    const user = await User.findOne({ email: email });
 
     if (!user) {
-      return res.status(400).json({ message: 'Token is invalid or has expired' });
+      return res.status(404).json({ message: 'No user found with that email' });
     }
 
     if (!user.isVerified) {
       return res.status(400).json({ message: 'Email not verified. Please verify your email first.' });
     }
 
-    if (password !== passwordConfirm) {
+    await emailVerify(user, req, 'forgotPassword');
+
+    user.password = password; 
+    await user.save(); 
+
+    res.status(200).json({
+      status: 'success',
+      message: 'Verification email sent for password reset!',
+    });
+
+  } catch (error) {
+    console.error('Forgot Password Error:', error);
+    return res.status(500).json({ message: 'There was an error sending the email. Try again later!' });
+  }
+};
+
+exports.resetPassword = async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { password, confirmPassword } = req.body;
+    console.log(token)
+
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+    const user = await User.findOne({
+      passwordResetToken: hashedToken,
+      passwordResetExpires: { $gt: Date.now() + 10 * 60 * 1000 }
+    });
+    console.log(hashedToken)
+
+    if (!user) {
+      return res.status(400).json({ message: 'Token is invalid or has expired please reload login' });
+    }
+
+    if (password !== confirmPassword) {
       return res.status(400).json({ message: 'Passwords do not match' });
     }
 
@@ -166,43 +169,128 @@ exports.resetPassword = async (req, res) => {
   }
 };
 
-exports.protectedRoute = (req, res) => {
-  if (req.isAuthenticated()) {
-    res.send(`Hello, ${req.user.name}`);
-  } else {
-    res.status(401).send('Unauthorized');
+exports.protectedRoute = (req, res) => {  
+  const token = signToken(req.user._id);
+  res.status(200).json({
+    status: 'success',
+    message: 'Login successful with Google',
+    token,
+    user: {
+      name: req.user.name,
+      email: req.user.email,
+      googleId: req.user.googleId,
+    },
+    greeting: `Hello, ${req.user.name}`,
+  });
+};
+
+
+exports.logout = (req, res) => {
+  try {
+    res.cookie('jwt', 'loggedout', {
+      expires: new Date(Date.now() + 10 * 1000), // Token expires after 10 seconds
+      httpOnly: true
+    });
+
+    res.status(200).json({
+      status: 'success',
+      message: 'User logged out successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'fail',
+      message: 'Error logging out',
+      error: error.message
+    });
   }
 };
 
-exports.logout = (req, res) => {
-  req.logout();
-  res.redirect('/');
-};
 
 exports.googleOAuthLogin = (req, res, next) => {
-  passport.authenticate('google', { scope: ['email', 'profile'] })(req, res, next);
+  passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 };
 
 exports.googleOAuthCallback = (req, res, next) => {
-  passport.authenticate('google', { failureRedirect: '/login' }, async (err, user) => {
-    if (err) {
+  passport.authenticate('google', { failureRedirect: '/login' }, (err, user) => {
+    if (err || !user) {
       return res.status(400).json({ 
         status: 'fail', 
         message: 'Google authentication failed. Please try again.' 
       });
     }
-
-    const token = signToken(user._id);
-
-    res.status(200).json({
-      status: 'success',
-      message: 'Login successful with Google',
-      tokenJWT: token,
-      user: {
-        name: user.name,
-        email: user.email,
-        googleId: user.googleId,
-      },
-    });
   })(req, res, next);
 };
+
+exports.verifyEmail = async (req, res, next) => {
+  try {
+    const hashedToken = crypto.createHash('sha256').update(req.params.token).digest('hex');
+    const user = await User.findOne({
+      VerificationToken: hashedToken,
+      VerificationExpires: { $gt: Date.now()} // Pastikan token belum kedaluwarsa
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Token is invalid or expired' });
+    }
+
+    user.isVerified = true;
+    user.VerificationToken = undefined;
+    user.VerificationExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: 'Email verified successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Error verifying email' });
+  }
+};
+
+exports.getProtectedData = async (req, res) => {
+  res.json({
+    message: 'This is protected data',
+    user: req.user,
+  });
+};
+
+exports.deleteUser = async (req, res) => {
+  try {
+    // Update user to set 'active' to false instead of deleting
+    await User.findByIdAndUpdate(req.user.id, { active: false });
+
+    res.status(204).json({
+      status: 'success',
+      message: 'User deactivated successfully',
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: 'fail',
+      message: 'Error deactivating user',
+      error: error.message
+    });
+  }
+};
+
+const createSendResponse = (user, statusCode, res) => {
+  const token = signToken(user._id);
+  const options  = {
+    maxAge: new Date(Date.now() + process.env.JWT_COOKIE_EXPIRES_IN * 24 * 60 * 60 * 1000),
+    secure: true,
+    httpOnly: true,
+  };
+  res.cookie('jwt', token, options);
+
+  if (process.env.NODE_ENV === 'production') {
+    options.secure = true;
+  }
+
+  res.status(statusCode).json({
+    status: 'success',
+    token,
+    data: {
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+      },
+    },
+  });
+}

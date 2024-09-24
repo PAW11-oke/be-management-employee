@@ -1,7 +1,6 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const User = require('../models/UserModels');
-const { signToken } = require('./jwt'); 
+const User = require('../models/UserModels'); 
 
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -10,33 +9,39 @@ passport.use(new GoogleStrategy({
 },
 async (accessToken, refreshToken, profile, done) => {
     try {
-        let user = await User.findOne({ $or: [{ googleId: profile.id }, { email: profile.emails[0].value }] });
+        let user = await User.findOne({ $or: [{ email: profile.emails[0].value }, { googleId: profile.id }] });
 
         if (!user) {
-            return res.redirect('/signup');
+            return done(null, false, { message: 'Please sign up manually.' });
         }
 
-        if (!user.googleId) {
+        if (!user.googleId && user.isVerified) {  
             user.googleId = profile.id;
             await user.save();
         }
 
-        const token = signToken(user._id);
-        return done(null, { user, token });
+        return done(null, user);  
     } catch (err) {
-        return done(err, null); 
+        return done(err, null);
     }
 }));
 
-passport.serializeUser((userData, done) => {
-    done(null, userData); 
+passport.serializeUser((user, done) => {
+    done(null, user.id);  // Gunakan _id dari MongoDB
 });
 
-passport.deserializeUser(async (userData, done) => {
+passport.deserializeUser(async (id, done) => {
     try {
-        const user = await User.findById(userData.user._id); 
-        done(null, { user, token: userData.token }); 
+        console.log("Deserialize user:", id);  
+        const user = await User.findById(id);  
+        if (!user) {
+            console.log("User not found");
+            return done(null, false);
+        }
+        console.log("User found:", user); 
+        done(null, user);
     } catch (err) {
-        done(err, null); 
+        console.log("Error during deserialization:", err);  
+        done(err, null);
     }
 });
