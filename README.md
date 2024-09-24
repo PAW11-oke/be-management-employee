@@ -1,5 +1,5 @@
 <h1 align="center">
-  Employee Management API
+  HR Management Employee API
 </h1>
 
 ### Kelompok PAW 11
@@ -25,6 +25,10 @@ git clone https://github.com/PAW11-oke/be-management-employee.git
 ```
 npm install
 ```
+or
+```bash
+yarn install
+```
 
 ## Setup dummy backend for upload
 Make the `.env` file and fill in the actual values for the environment variables.
@@ -33,6 +37,10 @@ Make the `.env` file and fill in the actual values for the environment variables
 
 ```bash
 npm run dev
+```
+or
+```bash
+yarn dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
