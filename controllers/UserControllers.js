@@ -67,7 +67,8 @@ exports.login = async (req, res, next) => {
         const lockoutEnd = new Date(user.VerificationExpires);
         const waitTime = Math.ceil((lockoutEnd - Date.now()) / 60000); 
         return res.status(423).json({ message: `Account locked. Try again in ${waitTime} minutes.` });      }
-    
+        createSendResponse(user,201,res);
+
       return res.status(401).json({ message: 'Incorrect email or password' });
     }
 
@@ -79,19 +80,10 @@ exports.login = async (req, res, next) => {
 
     await user.save({ validateBeforeSave: false });
 
-    res.cookie('trustedDevice', true, {
-      maxAge: 30 * 24 * 60 * 60 * 1000, 
-      httpOnly: true,
-    });
-
     const token = signToken(user._id);
 
-    res.status(200).json({
-      password: password,
-      status: 'success',
-      token,
-      message: 'Login successful and email verified!',
-    });
+    createSendResponse(user, 200, res);
+
   } catch (error) {
     console.error('Error during login:', error);
     res.status(500).json({
@@ -188,7 +180,7 @@ exports.protectedRoute = (req, res) => {
 exports.logout = (req, res) => {
   try {
     res.cookie('jwt', 'loggedout', {
-      expires: new Date(Date.now() + 10 * 1000), // Token expires after 10 seconds
+      expires: new Date(Date.now() + 10 * 1000), 
       httpOnly: true
     });
 
