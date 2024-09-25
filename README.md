@@ -33,6 +33,26 @@ yarn install
 ## Setup dummy backend for upload
 Make the `.env` file and fill in the actual values for the environment variables.
 
+```bash
+MONGODB_URI= <Connection string for MongoDB database>
+PORT= <Port on which the application will run>
+
+JWT_SECRET= <Secret key for JWT authentication>
+JWT_EXPIRES_IN= <Expiration time for JWT tokens>  
+JWT_COOKIE_EXPIRES_IN= <Expiration time for JWT cookies>      
+NODE_ENV= <Set the environment>      
+
+EMAIL_USER= <User for the email service (Mailtrap in this case)>
+EMAIL_PASS= <Password for the email service> 
+EMAIL_SERVICE= <Email service provider (SMTP in this case)>
+EMAIL_PORT= <Port for the email service>
+EMAIL_USERNAME= <Email username for email verify>
+EMAIL_PASSWORD= <Email password for email verify> 
+
+GOOGLE_CLIENT_ID= <Client ID for Google OAuth>
+GOOGLE_CLIENT_SECRET= <Client secret for Google OAuth> 
+```
+
 ## Run the development server
 
 ```bash
@@ -44,3 +64,5 @@ yarn dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+
