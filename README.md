@@ -65,4 +65,10 @@ yarn dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-
+## Tech Stack
+1. Google OAuth with Passport.js: Implements Google OAuth 2.0 for secure user authentication using Passport.js middleware.
+2. SMTP Mailtrap with Nodemailer: Sends emails for account verification and password resets via Mailtrap and Nodemailer.
+3. Login Attempt Logic: Limits login attempts and temporarily locks accounts after repeated failed attempts to prevent brute-force attacks.
+4. JWT Authentication and Route Protection: Uses JWT to secure routes, managing user sessions with token-based authentication.
+5. Cookies: Stores JWT in secure HTTP cookies to manage user sessions.
+6. MongoDB Database: Utilizes MongoDB with Mongoose for storing and managing application data in a NoSQL database.
