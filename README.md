@@ -72,3 +72,38 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 4. JWT Authentication and Route Protection: Uses JWT to secure routes, managing user sessions with token-based authentication.
 5. Cookies: Stores JWT in secure HTTP cookies to manage user sessions.
 6. MongoDB Database: Utilizes MongoDB with Mongoose for storing and managing application data in a NoSQL database.
+
+## Routes API
+1. Department Routes
+   - Create a new department
+   - Get all departments
+   - Get a single department by ID
+   - Update a department
+   - Delete a department
+2. Employee Routes
+   - Create a new employee
+   - Get all employees
+   - Get a single employee by ID
+   - Get employees by department
+   - Update an employee
+   - Delete an employee
+3. Project Routes
+   - Create a new project
+   - Get all projects
+   - Get a single project by ID
+   - Get projects by status
+   - Update a project
+   - Delete a project
+4. Performance Review Routes
+   - Create a new performance review
+   - Get all performance review
+   - Get a single performance review by ID
+   - Get performance reviews by year and quarter
+   - Update a performance review
+   - Delete a performance review
+5. Attendance Routes
+   - Create a new attendance record
+   - Get all attendance attendance records
+   - Get a single attendance record
+   - Update an attendance record
+   - Delete an attendance record
